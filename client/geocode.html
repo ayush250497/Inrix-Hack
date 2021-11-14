@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Bootstrap Example</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <!-- <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin="" /> -->
+</head>
+<style type="text/css">
+  body {
+    background: #f8f8ff;
+  }
+  h2 {
+    background: #003366;
+    color:  #fff;
+    padding: 5px;
+    border-radius: 5px;
+  }
+ 
+</style>
+<body>
+
+  <div class="container">
+  <h2>Parksafe</h2>
+  <div class="form-group">
+    <label for="add">Address:</label>
+    <input type="text" class="form-control" id="add" placeholder="Enter Address" name="add">
+  </div>
+  <button type="button" class="btn btn-primary" onclick="getlonlat();">Keep me Safe</button>
+
+
+  <br><br><br>
+  <div class="row">
+    <div class="col-md-6 col-lg-6">
+      <div id="map" style="height: 500px; width: 100%;"></div>
+    </div>
+    <div class="col-md-6 col-lg-6">
+      <div class="table-responsive">          
+        <table class="table">
+          <thead id="tableHead">
+            <!-- <tr class = "info">
+              <th>#</th>
+              <th>Available Spots</th>
+              <th>Street</th>
+              <th>Safety Score</th>
+            </tr> -->
+          </thead>
+          <tbody id="tableBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<br><br><br>
+ <!-- <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script> -->
+<script src="http://www.openlayers.org/api/OpenLayers.js"></script>
+<script type="text/javascript">
+
+let jsondata = "";
+
+let dummy = {
+  "parkings": [
+      {
+          "point": {
+              "lat": 37.74664459627663,
+              "lon": -122.42153552377304
+          },
+          "spaces": 135,
+          "street": "Mission Bernal Campus Parking Garage"
+      },
+      {
+          "point": {
+              "lat": 37.74477428827228,
+              "lon": -122.42061040084835
+          },
+          "spaces": 24,
+          "street": "Bank Of America"
+      }
+  ]
+};
+
+function getlonlat() {
+  document.getElementById("map").innerHTML = "";
+
+  var address = document.getElementById('add').value;
+
+  if (address != null && address.length > 0) {
+    let apiUrl = "https://nominatim.openstreetmap.org/search?q="+address+"&format=json&limit=1";
+
+    main(apiUrl);
+  }
+}
+
+async function getNormalJson(url) {
+  let response = await fetch(url)
+  return await response.json()
+}
+
+async function getJson(url) {
+    let response = await fetch(url);
+    console.log(response);
+    let data = await response.json();
+    return data;
+}
+
+async function getParkingLots(lon, lat) {
+  console.log(1)
+  urlstream = "http://127.0.0.1:5000/parking?longitude="+lon+"&latitude="+lat;
+  const url = new URL(urlstream);
+  return getJson(url);
+}
+
+async function main(apiUrl) {
+  jsondata = await getNormalJson(apiUrl);
+  // console.log(jsondata);
+
+  // Call Saifs api with the above lat lon
+  parkingLots = await getParkingLots(parseFloat(jsondata[0]['lon']), parseFloat(jsondata[0]['lat']));
+  //plotting the response's lat lon on map
+  // console.log([jsondata[0]['lon'], jsondata[0]['lat']]);
+  
+    epsg4326 = new OpenLayers.Projection("EPSG:4326")
+
+    map = new OpenLayers.Map({
+      div: "map",
+      displayProjection: epsg4326   // With this setting, lat and lon are displayed correctly in MousePosition and permanent anchor
+    });
+
+    //   map = new OpenLayers.Map("mapdiv");
+    map.addLayer(new OpenLayers.Layer.OSM());
+    map.addLayer(new OpenLayers.Layer.OSM("Wikimedia",
+      ["https://maps.wikimedia.org/osm-intl/${z}/${x}/${y}.png"],
+      {
+        attribution: "&copy; <a href='http://www.openstreetmap.org/'>OpenStreetMap</a> and contributors, under an <a href='http://www.openstreetmap.org/copyright' title='ODbL'>open license</a>. <a href='https://www.mediawiki.org/wiki/Maps'>Wikimedia's new style (beta)</a>",
+        "tileOptions": { "crossOriginKeyword": null }
+      })
+    );
+
+    map.addControls([
+      new OpenLayers.Control.MousePosition(),
+      new OpenLayers.Control.ScaleLine(),
+      new OpenLayers.Control.LayerSwitcher(),
+      new OpenLayers.Control.Permalink({ anchor: true })
+    ]);
+
+    projectTo = map.getProjectionObject(); //The map projection (Spherical Mercator)
+    var lonLat = new OpenLayers.LonLat(parseFloat(jsondata[0]['lon']), parseFloat(jsondata[0]['lat'])).transform(epsg4326, projectTo);
+    var zoom = 16;
+    
+    map.setCenter(lonLat, zoom);
+    
+    markers = [[parseFloat(jsondata[0]['lon']), parseFloat(jsondata[0]['lat']), "main"]];
+
+    // safety category - high - red
+    // safety category - med - yellow
+    // safety category - low - green
+    resultantList = [];
+      // safety category - high - red
+      // safety category - med - yellow
+      // safety category - low - green
+    parkingLots["parkings"].forEach( function(item, index) {
+      resultantList.push({name: item['street'], spaces: item['spaces'], score: item['safety']['score']})
+      markers.push([item['point']['lon'], item['point']['lat'], item["safety"]['category']])
+    });
+
+    console.log(resultantList)
+    resultantList.sort(function(a, b) {
+      return b['score'] - a['score'];
+    })
+
+    resultantString = "";
+
+    resultantList.forEach(function(item, index){
+      resultantString = resultantString + "<tr><td>" + (index+1) + "</td><td>" + item['spaces'] +  "</td><td>" + item['name'] +  "</td><td>" + item['score'] +"</td></tr>";
+    });
+    document.getElementById("tableHead").innerHTML = "<tr class = \"info\"><th>#</th><th>Available Spots</th><th>Street</th><th>Safety Score</th></tr>";
+    document.getElementById("tableBody").innerHTML = resultantString;
+
+   var colorList = ["blue", "red", "yellow", "green"];
+    var layerName = [markers[0][2]];
+    var styleArray = [new OpenLayers.StyleMap({ pointRadius: 6, fillColor: colorList[0], fillOpacity: 0.5 })];
+    var vectorLayer = [new OpenLayers.Layer.Vector(layerName[0], { styleMap: styleArray[0] })];   // First element defines first Layer
+
+    var j = 0;
+    var color = "blue";
+    for (var i = 1; i < markers.length; i++) {
+      if (!layerName.includes(markers[i][2])) {
+        j++;
+        if (markers[i][2].localeCompare("high") == 0) {
+          color = "red"; // colorlist index - red
+        } else if (markers[i][2].localeCompare("med") == 0) {
+          color = "yellow"; // colorlist index - yellow
+        } else if (markers[i][2].localeCompare("low") == 0) {
+          color = "green"; // colorlist index - green
+        }
+        layerName.push(markers[i][2]);                              // If new layer name found it is created
+        styleArray.push(new OpenLayers.StyleMap({ pointRadius: 6, fillColor: color, fillOpacity: 0.8 }));
+        vectorLayer.push(new OpenLayers.Layer.Vector(layerName[j], { styleMap: styleArray[j] }));
+      }
+    }
+
+    //Loop through the markers array
+    for (var i = 0; i < markers.length; i++) {
+      var lon = markers[i][0];
+      var lat = markers[i][1];
+      var feature = new OpenLayers.Feature.Vector(
+        new OpenLayers.Geometry.Point(lon, lat).transform(epsg4326, projectTo),
+        { description: "marker number " + i }
+        // see http://dev.openlayers.org/docs/files/OpenLayers/Feature/Vector-js.html#OpenLayers.Feature.Vector.Constants for more options
+      );
+      vectorLayer[layerName.indexOf(markers[i][2])].addFeatures(feature);
+    }
+
+    for (var i = 0; i < layerName.length; i++) {
+      map.addLayer(vectorLayer[i]);
+    }
+}
+    
+
+
+</script>
+</body>
+</html>
