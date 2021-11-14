@@ -84,6 +84,8 @@ let dummy = {
 };
 
 function getlonlat() {
+  document.getElementById("tableHead").innerHTML = "";
+    document.getElementById("tableBody").innerHTML = "";
   document.getElementById("map").innerHTML = "";
 
   var address = document.getElementById('add').value;
@@ -163,7 +165,7 @@ async function main(apiUrl) {
       // safety category - med - yellow
       // safety category - low - green
     parkingLots["parkings"].forEach( function(item, index) {
-      resultantList.push({name: item['street'], spaces: item['spaces'], score: item['safety']['score']})
+      resultantList.push({name: item['street'], spaces: item['spaces'], score: item['safety']['score'], category: item['safety']['category']})
       markers.push([item['point']['lon'], item['point']['lat'], item["safety"]['category']])
     });
 
@@ -175,7 +177,15 @@ async function main(apiUrl) {
     resultantString = "";
 
     resultantList.forEach(function(item, index){
-      resultantString = resultantString + "<tr><td>" + (index+1) + "</td><td>" + item['spaces'] +  "</td><td>" + item['name'] +  "</td><td>" + item['score'] +"</td></tr>";
+      if(item['category'].localeCompare('high') == 0 ) {
+          colorString = "danger"
+      } else if (item['category'].localeCompare('med') == 0 ) {
+          colorString = "warning"
+      } else {
+          colorString = "success"
+      }
+
+      resultantString = resultantString + "<tr class=\""+colorString+"\"><td>" + (index+1) + "</td><td>" + item['spaces'] +  "</td><td>" + item['name'] +  "</td><td>" + item['score'] +"</td></tr>";
     });
     document.getElementById("tableHead").innerHTML = "<tr class = \"info\"><th>#</th><th>Available Spots</th><th>Street</th><th>Safety Score</th></tr>";
     document.getElementById("tableBody").innerHTML = resultantString;

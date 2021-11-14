@@ -98,8 +98,8 @@ class ParkingService():
         long = radians(longitude)
         sum = 0
         count = 0
-        threshold_max = 1000
-        threshold_min = 100
+        threshold_max = 4000
+        threshold_min = 800
         for i in range(0, len(csv_data['Longitude'])):
             dlon = radians(csv_data['Longitude'][i]) - long
             dlat = radians(csv_data['Latitude'][i]) - lat
@@ -111,14 +111,14 @@ class ParkingService():
                 count += 1
 
         if count >= threshold_max:
-            return 0
+            return 15.234
         elif count <= threshold_min:
-            return 100
+            return 98.323
         else:
             num = count - threshold_min
             denom = threshold_max - threshold_min
             dangerscore = num / denom
-            return (10.0 - dangerscore) * 10
+            return 100.0 - (dangerscore * 100)
 
     def get_category(self, score):
         if score <= 30:
